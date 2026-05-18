@@ -9,18 +9,13 @@ RUN apk add --no-cache \
     libusb \
     rtl_433
 
-# Set working directory
 WORKDIR /app
 
-# Copy requirements and install Python dependencies
 COPY requirements.txt .
 RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 
-# Copy application files
 COPY app/ .
-
-# Copy startup script
 COPY run.sh /run.sh
-RUN chmod +x /run.sh
+RUN chmod a+x /run.sh
 
-CMD ["/run.sh"]
+ENTRYPOINT ["/run.sh"]
