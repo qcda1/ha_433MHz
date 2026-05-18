@@ -1,0 +1,10 @@
+sondes:
+  11011:
+    batterie_ok: true
+    canal: A
+    derniere_humidite: 72
+    derniere_reception: '2026-05-13 18:25:12'
+    derniere_temperature: 6.3
+    modele: Acurite-Tower
+    nom: Extérieur sous chambre d'amis
+    suivre: true
