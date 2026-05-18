@@ -10,4 +10,10 @@ export HA_TOKEN=$(python3 -c "import json; d=json.load(open('/data/options.json'
 export CONFIG_FILE="/config/rtl433_sensors.yaml"
 export LOG_FILE="/config/rtl433_bridge.log"
 
+echo "Scan interval : ${SCAN_INTERVAL}s"
+echo "Scan duration : ${SCAN_DURATION}s"
+echo "Frequency     : ${FREQUENCY} Hz"
+echo "HA URL        : ${HA_URL}"
+echo "Config file   : ${CONFIG_FILE}"
+
 exec python3 -u /app/main.py

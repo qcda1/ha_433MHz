@@ -30,7 +30,7 @@ def read_sensors(duration: int, frequency: int) -> dict:
             cmd,
             capture_output=True,
             text=True,
-            timeout=duration + 30,   # Safety margin
+            timeout=duration + 30,
         )
     except subprocess.TimeoutExpired:
         log.error("rtl_433 timed out — check SDR hardware.")
@@ -51,7 +51,6 @@ def read_sensors(duration: int, frequency: int) -> dict:
             if sensor_id is None:
                 continue
 
-            # Keep only the last reading per sensor
             devices_seen[sensor_id] = data
 
             temp    = data.get("temperature_C")
@@ -62,7 +61,8 @@ def read_sensors(duration: int, frequency: int) -> dict:
 
             log.info(
                 f"Received: ID={sensor_id} | {model} | channel={channel} | "
-                f"temp={temp}°C | hum={hum if hum is not None else 'N/A'}% | "
+                f"temp={temp}°C | "
+                f"hum={hum if hum is not None else 'N/A'}% | "
                 f"battery={'OK' if battery else 'LOW'}"
             )
 

@@ -44,9 +44,9 @@ def register_sensor(config: dict, data: dict, config_file: str) -> dict:
 
     # User-managed fields — never overwritten by incoming data
     sensor_update = {
-        "name"            : sensor.get("name", f"Unknown sensor {sensor_id}"),
-        "follow"          : sensor.get("follow", False),
-        "last_reception"  : time_str,
+        "name"          : sensor.get("name", f"Unknown sensor {sensor_id}"),
+        "follow"        : sensor.get("follow", False),
+        "last_reception": time_str,
     }
 
     # All native rtl_433 fields except id and time

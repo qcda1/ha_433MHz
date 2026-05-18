@@ -13,10 +13,10 @@ class HAClient:
     """Simple Home Assistant REST API client."""
 
     def __init__(self, ha_url: str, ha_token: str):
-        self.ha_url = ha_url.rstrip("/")
+        self.ha_url  = ha_url.rstrip("/")
         self.headers = {
             "Authorization": f"Bearer {ha_token}",
-            "Content-Type": "application/json",
+            "Content-Type" : "application/json",
         }
 
     def _post(self, endpoint: str, payload: dict) -> bool:
