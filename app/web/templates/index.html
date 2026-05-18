@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RTL-433 Sensor Bridge</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <div class="header-title">
+        <span class="header-icon">◈</span>
+        <div>
+          <h1>RTL-433 Sensor Bridge</h1>
+          <p class="header-sub">433 MHz device registry &amp; configuration</p>
+        </div>
+      </div>
+      <div class="header-stats">
+        <div class="stat">
+          <span class="stat-val">{{ sensors | length }}</span>
+          <span class="stat-label">devices</span>
+        </div>
+        <div class="stat">
+          <span class="stat-val">{{ sensors | selectattr('follow') | list | length }}</span>
+          <span class="stat-label">followed</span>
+        </div>
+        <div class="stat {% if sensors | selectattr('battery_ok', 'equalto', 0) | list | length > 0 %}stat-warn{% endif %}">
+          <span class="stat-val">{{ sensors | selectattr('battery_ok', 'equalto', 0) | list | length }}</span>
+          <span class="stat-label">low battery</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    {% if sensors %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Model</th>
+            <th>Ch</th>
+            <th>Temp</th>
+            <th>Hum</th>
+            <th>Battery</th>
+            <th>Last seen</th>
+            <th class="col-follow">Follow</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in sensors %}
+          <tr class="sensor-row {% if s.follow %}row-followed{% endif %} {% if s.battery_ok == 0 %}row-battery-low{% endif %}"
+              data-id="{{ s.id }}">
+
+            <td class="col-id"><code>{{ s.id }}</code></td>
+
+            <td class="col-name">
+              <span class="name-display">{{ s.name }}</span>
+              <input class="name-input" type="text" value="{{ s.name }}"
+                     style="display:none" maxlength="40">
+              <button class="btn-edit" title="Edit name" onclick="editName(this)">✎</button>
+              <button class="btn-save" title="Save name" onclick="saveName(this)"
+                      style="display:none">✔</button>
+            </td>
+
+            <td class="col-model">{{ s.model }}</td>
+            <td class="col-ch">{{ s.channel }}</td>
+
+            <td class="col-temp">
+              {% if s.temperature_C is not none %}
+                <span class="val-temp">{{ s.temperature_C }}°C</span>
+              {% else %}
+                <span class="na">—</span>
+              {% endif %}
+            </td>
+
+            <td class="col-hum">
+              {% if s.humidity is not none %}
+                <span class="val-hum">{{ s.humidity }}%</span>
+              {% else %}
+                <span class="na">—</span>
+              {% endif %}
+            </td>
+
+            <td class="col-battery">
+              {% if s.battery_ok == 0 %}
+                <span class="badge badge-low">LOW</span>
+              {% else %}
+                <span class="badge badge-ok">OK</span>
+              {% endif %}
+            </td>
+
+            <td class="col-time">{{ s.last_reception }}</td>
+
+            <td class="col-follow">
+              <label class="toggle" title="Follow this sensor in Home Assistant">
+                <input type="checkbox" {% if s.follow %}checked{% endif %}
+                       onchange="toggleFollow(this, '{{ s.id }}')">
+                <span class="slider"></span>
+              </label>
+            </td>
+
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon">◎</div>
+      <p>No sensors detected yet.</p>
+      <p class="empty-sub">Sensors will appear here after the first scan cycle.</p>
+    </div>
+    {% endif %}
+  </main>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    function toggleFollow(checkbox, sensorId) {
+      const follow = checkbox.checked;
+      const row    = checkbox.closest("tr");
+      fetch(`/api/sensor/${sensorId}/follow`, {
+        method : "POST",
+        headers: { "Content-Type": "application/json" },
+        body   : JSON.stringify({ follow }),
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.status === "ok") {
+          row.classList.toggle("row-followed", follow);
+          showToast(follow
+            ? `Sensor ${sensorId} is now followed.`
+            : `Sensor ${sensorId} unfollowed.`);
+        } else {
+          checkbox.checked = !follow;
+          showToast("Error: " + data.message, true);
+        }
+      })
+      .catch(() => { checkbox.checked = !follow; showToast("Network error.", true); });
+    }
+
+    function editName(btn) {
+      const td      = btn.closest("td");
+      const display = td.querySelector(".name-display");
+      const input   = td.querySelector(".name-input");
+      const saveBtn = td.querySelector(".btn-save");
+      display.style.display = "none";
+      btn.style.display     = "none";
+      input.style.display   = "inline-block";
+      saveBtn.style.display = "inline-block";
+      input.focus();
+      input.select();
+    }
+
+    function saveName(btn) {
+      const td       = btn.closest("td");
+      const row      = td.closest("tr");
+      const sensorId = row.dataset.id;
+      const display  = td.querySelector(".name-display");
+      const input    = td.querySelector(".name-input");
+      const editBtn  = td.querySelector(".btn-edit");
+      const name     = input.value.trim();
+      if (!name) { showToast("Name cannot be empty.", true); return; }
+      fetch(`/api/sensor/${sensorId}/name`, {
+        method : "POST",
+        headers: { "Content-Type": "application/json" },
+        body   : JSON.stringify({ name }),
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.status === "ok") {
+          display.textContent   = data.name;
+          display.style.display = "inline";
+          input.style.display   = "none";
+          btn.style.display     = "none";
+          editBtn.style.display = "inline-block";
+          showToast("Name updated.");
+        } else {
+          showToast("Error: " + data.message, true);
+        }
+      })
+      .catch(() => showToast("Network error.", true));
+    }
+
+    function showToast(msg, isError = false) {
+      const t = document.getElementById("toast");
+      t.textContent = msg;
+      t.className   = "toast show" + (isError ? " toast-error" : "");
+      clearTimeout(t._timer);
+      t._timer = setTimeout(() => { t.className = "toast"; }, 3000);
+    }
+
+    // Allow saving name with Enter key
+    document.addEventListener("keydown", e => {
+      if (e.key === "Enter" && document.activeElement.classList.contains("name-input")) {
+        const btn = document.activeElement.closest("td").querySelector(".btn-save");
+        if (btn) btn.click();
+      }
+    });
+  </script>
+</body>
+</html>
