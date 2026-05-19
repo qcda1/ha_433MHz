@@ -1,10 +1,6 @@
-ARG BUILD_FROM=ghcr.io/home-assistant/aarch64-base:3.20
-FROM $BUILD_FROM
+FROM arm64v8/python:3.11-alpine
 
-RUN apk add --no-cache python3 py3-pip rtl-sdr libusb rtl_433
-
-RUN python3 -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+RUN apk add --no-cache rtl-sdr libusb rtl_433
 
 RUN pip install --no-cache-dir requests pyyaml bottle paste schedule
 
