@@ -1,4 +1,4 @@
-ARG BUILD_FROM
+ARG BUILD_FROM=ghcr.io/home-assistant/aarch64-base:3.20
 FROM $BUILD_FROM
 
 # Install system dependencies + rtl_433
@@ -17,7 +17,7 @@ WORKDIR /app
 
 COPY *.py .
 COPY run.sh .
-COPY templates/ templates/
+COPY views/ views/
 COPY static/ static/
 
 RUN chmod a+x /app/run.sh
