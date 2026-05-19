@@ -1,19 +1,18 @@
-#!/usr/bin/with-contenv bash
+cat > /addons/dc_apps/rtl433_bridge/Dockerfile << 'EOF'
+ARG BUILD_FROM=ghcr.io/home-assistant/aarch64-base:3.20
+FROM $BUILD_FROM
 
-echo "Starting RTL-433 Sensor Bridge..."
+RUN apk add --no-cache python3 py3-pip rtl-sdr libusb rtl_433
 
-export SCAN_INTERVAL=$(python3 -c "import json; d=json.load(open('/data/options.json')); print(d.get('scan_interval', 300))")
-export SCAN_DURATION=$(python3 -c "import json; d=json.load(open('/data/options.json')); print(d.get('scan_duration', 90))")
-export FREQUENCY=$(python3 -c "import json; d=json.load(open('/data/options.json')); print(d.get('frequency', 433920000))")
-export HA_URL=$(python3 -c "import json; d=json.load(open('/data/options.json')); print(d.get('ha_url', 'http://homeassistant:8123'))")
-export HA_TOKEN=$(python3 -c "import json; d=json.load(open('/data/options.json')); print(d.get('ha_token', ''))")
-export CONFIG_FILE="/config/rtl433_sensors.yaml"
-export LOG_FILE="/config/rtl433_bridge.log"
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
-echo "Scan interval : ${SCAN_INTERVAL}s"
-echo "Scan duration : ${SCAN_DURATION}s"
-echo "Frequency     : ${FREQUENCY} Hz"
-echo "HA URL        : ${HA_URL}"
-echo "Config file   : ${CONFIG_FILE}"
+RUN pip install --no-cache-dir requests pyyaml bottle paste schedule
 
-exec python3 -u /app/main.py
+WORKDIR /app
+COPY *.py .
+COPY views/ views/
+COPY static/ static/
+
+CMD ["python3", "-u", "/app/main.py"]
+EOF

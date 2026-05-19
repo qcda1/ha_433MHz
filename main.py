@@ -11,6 +11,7 @@ import logging
 import schedule
 import time
 import threading
+import json
 
 from rtl_reader   import read_sensors
 from ha_api       import HAClient
@@ -31,13 +32,20 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-# ── Configuration from environment (set by run.sh) ────────────────────────────
-SCAN_INTERVAL = int(os.environ.get("SCAN_INTERVAL", 300))
-SCAN_DURATION = int(os.environ.get("SCAN_DURATION", 90))
-FREQUENCY     = int(os.environ.get("FREQUENCY",     433920000))
-HA_URL        = os.environ.get("HA_URL",        "http://homeassistant:8123")
-HA_TOKEN      = os.environ.get("HA_TOKEN",      "")
-CONFIG_FILE   = os.environ.get("CONFIG_FILE",   "/config/rtl433_sensors.yaml")
+# Read add-on options from HAOS Supervisor
+_options = {}
+_options_path = "/data/options.json"
+if os.path.exists(_options_path):
+    with open(_options_path) as f:
+        _options = json.load(f)
+
+SCAN_INTERVAL = int(_options.get("scan_interval", 300))
+SCAN_DURATION = int(_options.get("scan_duration", 90))
+FREQUENCY     = int(_options.get("frequency",     433920000))
+HA_URL        = _options.get("ha_url",   "http://homeassistant:8123")
+HA_TOKEN      = _options.get("ha_token", "")
+CONFIG_FILE   = "/config/rtl433_sensors.yaml"
+LOG_FILE      = "/config/rtl433_bridge.log"
 
 # Track sensors that already triggered a low-battery alert
 battery_alerted: set = set()
