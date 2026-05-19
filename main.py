@@ -21,7 +21,7 @@ from web_server   import start_web
 LOG_FILE = os.environ.get("LOG_FILE", "/config/rtl433_bridge.log")
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
     handlers=[
