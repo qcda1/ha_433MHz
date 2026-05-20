@@ -13,9 +13,15 @@ from bottle import Bottle, template, request, response, static_file
 
 from sensor_store import load_config, update_sensor_field
 
-log    = logging.getLogger(__name__)
-app    = Bottle()
+log          = logging.getLogger(__name__)
+app          = Bottle()
 _config_file = None
+
+# Fields managed by the user — shown as interactive controls
+USER_FIELDS = {"name", "follow"}
+
+# Fields to always exclude from the raw YAML display
+EXCLUDED_FIELDS = {"name", "follow"}
 
 
 def start_web(config_file: str) -> None:
@@ -41,19 +47,31 @@ def serve_static(filepath):
 def index():
     config  = load_config(_config_file)
     sensors = []
+
     for sid, data in config.get("sensors", {}).items():
+        # Build the raw YAML fields — everything except user-managed fields
+        raw_fields = {
+            k: v for k, v in data.items()
+            if k not in EXCLUDED_FIELDS
+        }
         sensors.append({
-            "id"            : sid,
-            "name"          : data.get("name", f"Unknown {sid}"),
-            "follow"        : data.get("follow", False),
-            "model"         : data.get("model", "—"),
-            "channel"       : data.get("channel", "—"),
-            "temperature_C" : data.get("temperature_C"),
-            "humidity"      : data.get("humidity"),
-            "battery_ok"    : data.get("battery_ok", 1),
-            "last_reception": data.get("last_reception", "—"),
+            "id"        : sid,
+            "name"      : data.get("name",   f"Unknown sensor {sid}"),
+            "follow"    : data.get("follow",  False),
+            "battery_ok": data.get("battery_ok", 1),
+            "has_temp"  : data.get("temperature_C") is not None,
+            "raw"       : raw_fields,
         })
-    sensors.sort(key=lambda s: (not s["follow"], s["last_reception"]))
+
+    # Sort: followed first, then by last_reception descending
+    sensors.sort(
+        key=lambda s: (
+            not s["follow"],
+            s["raw"].get("last_reception", ""),
+        ),
+        reverse=False,
+    )
+
     return template("index", sensors=sensors)
 
 
@@ -71,11 +89,11 @@ def toggle_follow(sensor_id):
         response.status = 404
         return json.dumps({"status": "error", "message": "Sensor not found"})
     except Exception as e:
+        log.error(f"toggle_follow error: {e}")
         response.status = 500
         return json.dumps({"status": "error", "message": str(e)})
 
 
-# Remplace les routes /api/... par des routes qui fonctionnent avec l'ingress
 @app.route("/api/sensor/<sensor_id>/name", method="POST")
 def update_name(sensor_id):
     response.content_type = "application/json"
