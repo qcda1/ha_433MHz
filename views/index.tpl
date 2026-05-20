@@ -123,71 +123,60 @@
   <div id="toast" class="toast"></div>
 
   <script>
-    function toggleFollow(checkbox, sensorId) {
-      const follow = checkbox.checked;
-      const row    = checkbox.closest("tr");
-      fetch(`/api/sensor/${sensorId}/follow`, {
-        method : "POST",
-        headers: { "Content-Type": "application/json" },
-        body   : JSON.stringify({ follow }),
-      })
-      .then(r => r.json())
-      .then(data => {
-        if (data.status === "ok") {
-          row.classList.toggle("row-followed", follow);
-          showToast(follow
-            ? `Sensor ${sensorId} is now followed.`
-            : `Sensor ${sensorId} unfollowed.`);
-        } else {
-          checkbox.checked = !follow;
-          showToast("Error: " + data.message, true);
-        }
-      })
-      .catch(() => { checkbox.checked = !follow; showToast("Network error.", true); });
-    }
+const BASE = window.location.pathname.replace(/\/$/, '');
 
-    function editName(btn) {
-      const td      = btn.closest("td");
-      const display = td.querySelector(".name-display");
-      const input   = td.querySelector(".name-input");
-      const saveBtn = td.querySelector(".btn-save");
-      display.style.display = "none";
+function toggleFollow(checkbox, sensorId) {
+  const follow = checkbox.checked;
+  const row    = checkbox.closest("tr");
+  fetch(`${BASE}/api/sensor/${sensorId}/follow`, {
+    method : "POST",
+    headers: { "Content-Type": "application/json" },
+    body   : JSON.stringify({ follow }),
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.status === "ok") {
+      row.classList.toggle("row-followed", follow);
+      showToast(follow
+        ? `Sensor ${sensorId} is now followed.`
+        : `Sensor ${sensorId} unfollowed.`);
+    } else {
+      checkbox.checked = !follow;
+      showToast("Error: " + data.message, true);
+    }
+  })
+  .catch(() => { checkbox.checked = !follow; showToast("Network error.", true); });
+}
+
+function saveName(btn) {
+  const td       = btn.closest("td");
+  const row      = td.closest("tr");
+  const sensorId = row.dataset.id;
+  const display  = td.querySelector(".name-display");
+  const input    = td.querySelector(".name-input");
+  const editBtn  = td.querySelector(".btn-edit");
+  const name     = input.value.trim();
+  if (!name) { showToast("Name cannot be empty.", true); return; }
+  fetch(`${BASE}/api/sensor/${sensorId}/name`, {
+    method : "POST",
+    headers: { "Content-Type": "application/json" },
+    body   : JSON.stringify({ name }),
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.status === "ok") {
+      display.textContent   = data.name;
+      display.style.display = "inline";
+      input.style.display   = "none";
       btn.style.display     = "none";
-      input.style.display   = "inline-block";
-      saveBtn.style.display = "inline-block";
-      input.focus();
-      input.select();
+      editBtn.style.display = "inline-block";
+      showToast("Name updated.");
+    } else {
+      showToast("Error: " + data.message, true);
     }
-
-    function saveName(btn) {
-      const td       = btn.closest("td");
-      const row      = td.closest("tr");
-      const sensorId = row.dataset.id;
-      const display  = td.querySelector(".name-display");
-      const input    = td.querySelector(".name-input");
-      const editBtn  = td.querySelector(".btn-edit");
-      const name     = input.value.trim();
-      if (!name) { showToast("Name cannot be empty.", true); return; }
-      fetch(`/api/sensor/${sensorId}/name`, {
-        method : "POST",
-        headers: { "Content-Type": "application/json" },
-        body   : JSON.stringify({ name }),
-      })
-      .then(r => r.json())
-      .then(data => {
-        if (data.status === "ok") {
-          display.textContent   = data.name;
-          display.style.display = "inline";
-          input.style.display   = "none";
-          btn.style.display     = "none";
-          editBtn.style.display = "inline-block";
-          showToast("Name updated.");
-        } else {
-          showToast("Error: " + data.message, true);
-        }
-      })
-      .catch(() => showToast("Network error.", true));
-    }
+  })
+  .catch(() => showToast("Network error.", true));
+}
 
     function showToast(msg, isError = false) {
       const t = document.getElementById("toast");

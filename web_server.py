@@ -75,6 +75,7 @@ def toggle_follow(sensor_id):
         return json.dumps({"status": "error", "message": str(e)})
 
 
+# Remplace les routes /api/... par des routes qui fonctionnent avec l'ingress
 @app.route("/api/sensor/<sensor_id>/name", method="POST")
 def update_name(sensor_id):
     response.content_type = "application/json"
@@ -93,6 +94,7 @@ def update_name(sensor_id):
         response.status = 404
         return json.dumps({"status": "error", "message": "Sensor not found"})
     except Exception as e:
+        log.error(f"update_name error: {e}")
         response.status = 500
         return json.dumps({"status": "error", "message": str(e)})
 
