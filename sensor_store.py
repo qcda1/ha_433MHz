@@ -39,6 +39,22 @@ def register_sensor(config: dict, data: dict, config_file: str) -> dict:
     sensor_id = data.get("id")
     time_str  = data.get("time", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
+    # Normalize sensor_id type — match existing key whether int or string
+    sensors = config["sensors"]
+    if sensor_id not in sensors:
+        # Try string version
+        str_id = str(sensor_id)
+        if str_id in sensors:
+            sensor_id = str_id
+        else:
+            # Try int version
+            try:
+                int_id = int(sensor_id)
+                if int_id in sensors:
+                    sensor_id = int_id
+            except (ValueError, TypeError):
+                pass
+
     is_new = sensor_id not in config["sensors"]
     sensor = config["sensors"].get(sensor_id, {})
 
@@ -80,9 +96,24 @@ def get_sensor(config: dict, sensor_id) -> dict:
 def update_sensor_field(config: dict, sensor_id, field: str,
                         value, config_file: str) -> bool:
     """Update a single user-managed field for a sensor."""
-    if sensor_id not in config["sensors"]:
+    
+    # sensor_id from URL is always a string — try to match int or string key
+    sensors = config["sensors"]
+    
+    # Try as-is first, then as int, then as string
+    if sensor_id not in sensors:
+        try:
+            sensor_id = int(sensor_id)
+        except (ValueError, TypeError):
+            pass
+    
+    if sensor_id not in sensors:
+        sensor_id = str(sensor_id)
+
+    if sensor_id not in sensors:
         log.warning(f"Sensor ID={sensor_id} not found in config.")
         return False
+
     config["sensors"][sensor_id][field] = value
     save_config(config, config_file)
     log.info(f"Sensor ID={sensor_id}: {field} set to {value}")
