@@ -252,13 +252,13 @@
 
     /* ── YAML body ── */
     .yaml-body {
-      padding: 12px 16px;
+      padding: 8px 16px;
     }
 
     .yaml-line {
       display    : flex;
       gap        : 0;
-      line-height: 1.7;
+      line-height: 1.3;
       white-space: nowrap;
     }
 

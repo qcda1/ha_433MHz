@@ -1,25 +1,39 @@
 # RTL-433 Sensor Bridge
 
-A Home Assistant add-on that reads 433 MHz temperature and humidity sensors
-via an RTL-SDR dongle and pushes them to Home Assistant through the REST API.
+A Home Assistant add-on that reads 433 MHz wireless sensor data via an RTL-SDR
+dongle and pushes temperature, humidity and battery state to Home Assistant
+through the REST API.
 
 ## Features
 
-- Reads all 433 MHz devices supported by [rtl_433](https://github.com/merbanan/rtl_433)
+- Captures all 433 MHz devices supported by [rtl_433](https://github.com/merbanan/rtl_433)
+- Relies on the [pbkhrv/rtl_433](https://github.com/pbkhrv/rtl_433-hass-addons) add-on for SDR hardware access
 - Pushes temperature, humidity and battery state to Home Assistant
 - Persistent sensor registry (`/config/rtl433_sensors.yaml`) — survives restarts
-- Web configuration panel (HA ingress) to name sensors and toggle follow
+- YAML-style web configuration panel (HA ingress) showing all sensor fields
+- Sensors can be named and individually followed or ignored
 - Low battery notifications — mobile push + persistent HA notification
-- Configurable scan interval, scan duration and frequency
+- Configurable scan interval
 - Logging to `/config/rtl433_bridge.log`
 
 ## Architecture
 
 ```
+RTL-SDR dongle
+    └── pbkhrv/rtl_433 add-on
+            └── /config/rtl_433_output.json
+                    └── RTL-433 Sensor Bridge (this add-on)
+                            ├── /config/rtl433_sensors.yaml  (sensor registry)
+                            ├── Home Assistant REST API       (entity updates)
+                            └── Web panel (ingress port 8099) (configuration UI)
+```
+
+## File structure
+
+```
 ha_433MHz/
 ├── Dockerfile
 ├── config.json
-├── run.sh
 ├── deploy.sh
 ├── main.py
 ├── rtl_reader.py
@@ -33,18 +47,31 @@ ha_433MHz/
 └── README.md
 ```
 
-## Development workflow
+## Prerequisites
+
+This add-on requires the **pbkhrv/rtl_433** add-on to be installed and running.
+It handles all USB and kernel driver access for the RTL-SDR dongle.
+
+### Install pbkhrv/rtl_433
+
+1. In HA: **Settings → Apps → App store → ⋮ → Repositories**
+2. Add: `https://github.com/pbkhrv/rtl_433-hass-addons`
+3. Install **rtl_433**
+4. Create `/config/rtl_433/rtl_433.conf.template`:
 
 ```
-Cursor (macOS) → VM Debian ~/devel/ha_433MHz → GitHub → HA (deploy.sh)
+frequency 433920000
+output json:/config/rtl_433_output.json
 ```
 
-## Installation on Home Assistant
+5. Start the add-on and confirm sensors appear in the log
+
+## Installation
 
 ### First install
 
 1. SSH into your Home Assistant instance
-2. Create the add-on directory and clone the repo:
+2. Clone the repo into the local add-ons directory:
 
 ```bash
 mkdir -p /addons/dc_apps/rtl433_bridge
@@ -52,7 +79,7 @@ cd /addons/dc_apps/rtl433_bridge
 git init
 git remote add origin https://github.com/qcda1/ha_433MHz.git
 git pull origin main
-chmod +x run.sh deploy.sh
+chmod +x deploy.sh
 ```
 
 3. In HA: **Settings → Apps → App store → Local Apps**
@@ -65,13 +92,11 @@ Get a Long-Lived Access Token:
 
 Configure the add-on:
 
-| Option          | Default                     | Description                              |
-|-----------------|-----------------------------|------------------------------------------|
-| `scan_interval` | `300`                       | Seconds between scan cycles (60–3600)    |
-| `scan_duration` | `90`                        | Seconds rtl_433 listens per cycle        |
-| `frequency`     | `433920000`                 | Frequency in Hz                          |
-| `ha_url`        | `http://homeassistant:8123` | Home Assistant URL                       |
-| `ha_token`      | *(required)*                | Long-lived access token                  |
+| Option          | Default                     | Description                           |
+|-----------------|-----------------------------|---------------------------------------|
+| `scan_interval` | `60`                        | Seconds between scan cycles (10–3600) |
+| `ha_url`        | `http://homeassistant:8123` | Home Assistant internal URL           |
+| `ha_token`      | *(required)*                | Long-lived access token               |
 
 ### Subsequent updates
 
@@ -87,40 +112,89 @@ Pull without restarting:
 /addons/dc_apps/rtl433_bridge/deploy.sh --no-restart
 ```
 
+> **Note:** Changes to `config.json` require a full uninstall/reinstall —
+> a restart alone is not sufficient.
+
+## Development workflow
+
+```
+Cursor (macOS) → git push → GitHub → deploy.sh on HA
+```
+
+## Web configuration panel
+
+The add-on includes a web UI accessible via:
+
+**Settings → Apps → RTL-433 Sensor Bridge → Open Web UI**
+
+> **First access on a new device:** always open the panel via
+> **Settings → Apps → Open Web UI** before using it in a dashboard.
+> This initializes the HA ingress session required for subsequent access.
+
+The panel displays all detected sensors in YAML style, showing every field
+returned by rtl_433. For each sensor you can:
+
+- Edit the display name
+- Toggle **follow** to push the sensor to Home Assistant
+
+Only sensors with a temperature reading and `follow: true` are pushed to HA.
+All other detected devices are recorded in the sensor registry but ignored.
+
 ## Home Assistant entities
 
 For each followed sensor:
 
 | Entity | Description |
 |--------|-------------|
-| `sensor.rtl433_<id>_temperature` | Temperature in °C |
-| `sensor.rtl433_<id>_humidity`    | Humidity in % (if available) |
+| `sensor.rtl433_<id>_temperature`    | Temperature in °C |
+| `sensor.rtl433_<id>_humidity`       | Humidity in % (if available) |
 | `binary_sensor.rtl433_<id>_battery` | `on` = low battery |
 
 Entities are visible in **Developer Tools → States** and can be added
 to any Lovelace dashboard.
 
-## Sensor configuration file
+## Sensor registry
 
-`/config/rtl433_sensors.yaml` is created automatically.
+`/config/rtl433_sensors.yaml` is created automatically on first run.
 User-managed fields (`name`, `follow`) are never overwritten by incoming data.
+All native rtl_433 fields are stored as-is for identification purposes.
 
 ```yaml
 sensors:
   79:
     name: Backyard
     follow: true
-    last_reception: '2026-05-14 13:00:02'
+    last_reception: '2026-05-20 17:22:46'
     model: LaCrosse-TX141THBv2
     channel: 0
-    battery_ok: true
-    temperature_C: 13.5
-    humidity: 87
+    battery_ok: 1
+    temperature_C: 22.1
+    humidity: 34
+    mic: CRC
+    test: 'No'
+  2435056:
+    name: Unknown sensor 2435056
+    follow: false
+    last_reception: '2026-05-20 17:09:45'
+    model: DSC-Security
+    battery_ok: 1
+    closed: 1
+    esn: 2527f0
+    mic: CRC
 ```
+
+## Kernel driver note
+
+On Home Assistant OS, the `dvb_usb_rtl28xxu` kernel module loads automatically
+when the RTL-SDR dongle is connected and prevents direct access to the device.
+This is why this add-on delegates SDR access to pbkhrv/rtl_433, which handles
+kernel driver detachment correctly within its privileged container.
 
 ## Hardware
 
-Tested with Nooelec NESDR SMArt v5 (RTL2832U / R820T).
+Tested with Nooelec NESDR SMArt v5 (RTL2832U / R820T) on Raspberry Pi 4
+running Home Assistant OS 17.x.
+
 Any RTL-SDR dongle supported by rtl_433 should work.
 
 ## License
