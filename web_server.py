@@ -57,11 +57,11 @@ def index():
 
 @app.route("/")
 def index():
-    config  = load_config(_config_file)
-    sensors = []
+    config    = load_config(_config_file)
+    base_path = get_base_path()
+    sensors   = []
 
     for sid, data in config.get("sensors", {}).items():
-        # Build the raw YAML fields — everything except user-managed fields
         raw_fields = {
             k: v for k, v in data.items()
             if k not in EXCLUDED_FIELDS
@@ -75,7 +75,6 @@ def index():
             "raw"       : raw_fields,
         })
 
-    # Sort: followed first, then by last_reception descending
     sensors.sort(
         key=lambda s: (
             not s["follow"],
@@ -84,7 +83,7 @@ def index():
         reverse=False,
     )
 
-    return template("index", sensors=sensors)
+    return template("index", sensors=sensors, base_path=base_path)
 
 
 @app.route("/api/sensor/<sensor_id>/follow", method="POST")
