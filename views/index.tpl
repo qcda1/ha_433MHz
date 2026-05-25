@@ -430,7 +430,7 @@
 <div id="toast" class="toast"></div>
 
 <script>
-  const BASE = window.location.pathname.replace(/\/$/, '');
+  const BASE = "{{base_path}}".replace(/\/$/, '');
 
   function toggleFollow(checkbox, sensorId) {
     const follow = checkbox.checked;

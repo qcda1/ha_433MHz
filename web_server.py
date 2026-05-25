@@ -37,10 +37,22 @@ def start_web(config_file: str) -> None:
         quiet=True,
     )
 
+def get_base_path():
+    """Get ingress prefix from HA header X-Ingress-Path."""
+    ingress_path = request.headers.get('X-Ingress-Path', '')
+    if ingress_path:
+        if not ingress_path.endswith('/'):
+            ingress_path += '/'
+        return ingress_path
+    return '/'
 
-@app.route("/static/<filepath:path>")
-def serve_static(filepath):
-    return static_file(filepath, root="/app/static")
+@app.route("/")
+def index():
+    config    = load_config(_config_file)
+    base_path = get_base_path()
+    sensors   = []
+    # ... reste inchangé ...
+    return template("index", sensors=sensors, base_path=base_path)
 
 
 @app.route("/")
