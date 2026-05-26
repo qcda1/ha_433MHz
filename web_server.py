@@ -46,14 +46,6 @@ def get_base_path():
         return ingress_path
     return '/'
 
-@app.route("/")
-def index():
-    config    = load_config(_config_file)
-    base_path = get_base_path()
-    sensors   = []
-    # ... reste inchangé ...
-    return template("index", sensors=sensors, base_path=base_path)
-
 
 @app.route("/")
 def index():
