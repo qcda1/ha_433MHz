@@ -18,11 +18,12 @@ Architecture:
 import json
 import os
 import logging
+from logging.handlers import RotatingFileHandler
 import schedule
 import time
 import threading
 
-from rtl_reader   import read_sensors, reset_position
+from rtl_reader   import read_sensors, reset_position, trim_json_file
 from ha_api       import HAClient
 from sensor_store import load_config, register_sensor
 from web_server   import start_web
@@ -36,6 +37,7 @@ if os.path.exists(_options_path):
         _options = json.load(_f)
 
 SCAN_INTERVAL = int(_options.get("scan_interval", 300))
+LOG_LEVEL_STR = _options.get("log_level", "INFO").upper()
 HA_URL        = _options.get("ha_url",   "http://homeassistant:8123")
 HA_TOKEN      = _options.get("ha_token", "")
 CONFIG_FILE   = "/config/rtl433_sensors.yaml"
@@ -43,11 +45,16 @@ LOG_FILE      = "/config/rtl433_bridge.log"
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=LOG_LEVEL,
     format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
     handlers=[
-        logging.FileHandler(LOG_FILE, encoding="utf-8"),
+        RotatingFileHandler(
+            LOG_FILE,
+            maxBytes=1 * 1024 * 1024,
+            backupCount=3,
+            encoding="utf-8"
+        ),
         logging.StreamHandler(),
     ],
 )
@@ -66,6 +73,9 @@ def scan_and_push() -> None:
     log.info("=" * 60)
     log.info("Scan cycle starting...")
 
+    # Trim JSON file if too large
+    trim_json_file(max_size_mb=10)
+    
     config  = load_config(CONFIG_FILE)
     ha      = HAClient(HA_URL, HA_TOKEN)
     devices = read_sensors()

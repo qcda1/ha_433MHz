@@ -1,6 +1,6 @@
 {
   "name": "RTL-433 Sensor Bridge",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "slug": "rtl433_bridge",
   "description": "Reads 433MHz sensor data from pbkhrv/rtl_433 add-on output and pushes to Home Assistant.",
   "url": "https://github.com/qcda1/ha_433MHz",
@@ -22,6 +22,7 @@
   },
   "schema": {
     "scan_interval": "int(10,3600)",
+    "log_level": "list(DEBUG|INFO|WARNING|ERROR|CRITICAL)",
     "ha_url": "str",
     "ha_token": "str"
   },

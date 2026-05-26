@@ -110,3 +110,34 @@ def reset_position() -> None:
             f"JSON file not found at startup: {RTL_JSON_FILE} — "
             f"will retry on first scan cycle."
         )
+
+def trim_json_file(max_size_mb: int = 10) -> None:
+    """
+    Trim the rtl_433 JSON output file when it exceeds max_size_mb.
+    Keeps only the last 1000 lines to preserve recent data.
+    """
+    if not os.path.exists(RTL_JSON_FILE):
+        return
+
+    size_mb = os.path.getsize(RTL_JSON_FILE) / (1024 * 1024)
+    if size_mb < max_size_mb:
+        return
+
+    log.info(f"JSON file size {size_mb:.1f}MB exceeds {max_size_mb}MB — trimming...")
+
+    with open(RTL_JSON_FILE, "r") as f:
+        lines = f.readlines()
+
+    # Keep last 1000 lines
+    kept = lines[-1000:]
+
+    with open(RTL_JSON_FILE, "w") as f:
+        f.writelines(kept)
+
+    # Reset position to end of trimmed file
+    global _last_position
+    with open(RTL_JSON_FILE, "r") as f:
+        f.seek(0, 2)
+        _last_position = f.tell()
+
+    log.info(f"JSON file trimmed: {len(lines)} → {len(kept)} lines.")

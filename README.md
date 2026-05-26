@@ -10,27 +10,28 @@ through the REST API.
 - Relies on the [pbkhrv/rtl_433](https://github.com/pbkhrv/rtl_433-hass-addons) add-on for SDR hardware access
 - Pushes temperature, humidity and battery state to Home Assistant
 - Persistent sensor registry (`/config/rtl433_sensors.yaml`) — survives restarts
-- YAML-style web configuration panel (HA ingress) showing all sensor fields
+- YAML-style web configuration panel showing all sensor fields
 - Sensors can be named and individually followed or ignored
 - Low battery notifications — mobile push + persistent HA notification
 - Configurable scan interval
 - Logging to `/config/rtl433_bridge.log`
+- Manage log file sizes
 
 ## Architecture
 
-```
+```text
 RTL-SDR dongle
     └── pbkhrv/rtl_433 add-on
             └── /config/rtl_433_output.json
                     └── RTL-433 Sensor Bridge (this add-on)
                             ├── /config/rtl433_sensors.yaml  (sensor registry)
                             ├── Home Assistant REST API       (entity updates)
-                            └── Web panel (ingress port 8099) (configuration UI)
+                            └── Bottle web panel (port 8099)  (configuration UI)
 ```
 
 ## File structure
 
-```
+```text
 ha_433MHz/
 ├── Dockerfile
 ├── config.json
@@ -59,7 +60,7 @@ It handles all USB and kernel driver access for the RTL-SDR dongle.
 3. Install **rtl_433**
 4. Create `/config/rtl_433/rtl_433.conf.template`:
 
-```
+```text
 frequency 433920000
 output json:/config/rtl_433_output.json
 ```
@@ -84,6 +85,7 @@ chmod +x deploy.sh
 
 3. In HA: **Settings → Apps → App store → Local Apps**
 4. Install **RTL-433 Sensor Bridge**
+5. In the add-on info page, **disable Protected mode** — required to expose port 8099
 
 ### Configuration
 
@@ -117,25 +119,34 @@ Pull without restarting:
 
 ## Development workflow
 
-```
+```text
 Cursor (macOS) → git push → GitHub → deploy.sh on HA
 ```
 
 ## Web configuration panel
 
-The add-on includes a web UI accessible via:
+The add-on exposes its web UI directly on port 8099. Add it to a dashboard
+using an iframe card:
 
-**Settings → Apps → RTL-433 Sensor Bridge → Open Web UI**
-
-> **First access on a new device:** always open the panel via
-> **Settings → Apps → Open Web UI** before using it in a dashboard.
-> This initializes the HA ingress session required for subsequent access.
+```yaml
+- type: panel
+  path: RTL-433
+  title: RTL-433
+  cards:
+    - type: iframe
+      url: http://<ha-ip>:8099
+      aspect_ratio: 50%
+```
 
 The panel displays all detected sensors in YAML style, showing every field
 returned by rtl_433. For each sensor you can:
 
 - Edit the display name
 - Toggle **follow** to push the sensor to Home Assistant
+
+> **First access on a new device:** open the panel once via
+> **Settings → Apps → RTL-433 Sensor Bridge → Open Web UI**
+> before using it in a dashboard. This initializes the HA ingress session.
 
 Only sensors with a temperature reading and `follow: true` are pushed to HA.
 All other detected devices are recorded in the sensor registry but ignored.
