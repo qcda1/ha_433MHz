@@ -43,6 +43,8 @@ HA_TOKEN      = _options.get("ha_token", "")
 CONFIG_FILE   = "/config/rtl433_sensors.yaml"
 LOG_FILE      = "/config/rtl433_bridge.log"
 
+# Conversion string → niveau logging
+LOG_LEVEL = getattr(logging, LOG_LEVEL_STR, logging.INFO)
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=LOG_LEVEL,
