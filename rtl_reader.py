@@ -17,7 +17,7 @@ import logging
 log = logging.getLogger(__name__)
 
 # Path to the JSON output file produced by pbkhrv/rtl_433 add-on
-RTL_JSON_FILE = "/config/rtl_433_output.json"
+RTL_JSON_FILE = "/config/rtl_433/rtl_433_output.json"
 
 # Track file position between calls — module-level state
 _last_position: int = 0

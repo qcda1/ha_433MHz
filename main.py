@@ -40,8 +40,8 @@ SCAN_INTERVAL = int(_options.get("scan_interval", 300))
 LOG_LEVEL_STR = _options.get("log_level", "INFO").upper()
 HA_URL        = _options.get("ha_url",   "http://homeassistant:8123")
 HA_TOKEN      = _options.get("ha_token", "")
-CONFIG_FILE   = "/config/rtl433_sensors.yaml"
-LOG_FILE      = "/config/rtl433_bridge.log"
+CONFIG_FILE   = "/config/rtl_433/rtl433_sensors.yaml"
+LOG_FILE      = "/config/rtl_433/rtl433_bridge.log"
 
 # Conversion string → niveau logging
 LOG_LEVEL = getattr(logging, LOG_LEVEL_STR, logging.INFO)
