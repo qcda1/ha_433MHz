@@ -9,12 +9,12 @@ through the REST API.
 - Captures all 433 MHz devices supported by [rtl_433](https://github.com/merbanan/rtl_433)
 - Relies on the [pbkhrv/rtl_433](https://github.com/pbkhrv/rtl_433-hass-addons) add-on for SDR hardware access
 - Pushes temperature, humidity and battery state to Home Assistant
-- Persistent sensor registry (`/config/rtl433_sensors.yaml`) — survives restarts
+- Persistent sensor registry (`/config/rtl_433/rtl433_sensors.yaml`) — survives restarts
 - YAML-style web configuration panel showing all sensor fields
 - Sensors can be named and individually followed or ignored
 - Low battery notifications — mobile push + persistent HA notification
 - Configurable scan interval
-- Logging to `/config/rtl433_bridge.log`
+- Logging to `/config/rtl_433/rtl433_bridge.log`
 - Manage log file sizes
 
 ## Architecture
@@ -22,9 +22,9 @@ through the REST API.
 ```text
 RTL-SDR dongle
     └── pbkhrv/rtl_433 add-on
-            └── /config/rtl_433_output.json
+            └── /config/rtl_433/rtl_433_output.json
                     └── RTL-433 Sensor Bridge (this add-on)
-                            ├── /config/rtl433_sensors.yaml  (sensor registry)
+                            ├── /config/rtl_433/rtl433_sensors.yaml  (sensor registry)
                             ├── Home Assistant REST API       (entity updates)
                             └── Bottle web panel (port 8099)  (configuration UI)
 ```
@@ -62,7 +62,8 @@ It handles all USB and kernel driver access for the RTL-SDR dongle.
 
 ```text
 frequency 433920000
-output json:/config/rtl_433_output.json
+output json:/config/rtl_433/rtl_433_output.json
+protocol -158
 ```
 
 5. Start the add-on and confirm sensors appear in the log
@@ -200,6 +201,7 @@ On Home Assistant OS, the `dvb_usb_rtl28xxu` kernel module loads automatically
 when the RTL-SDR dongle is connected and prevents direct access to the device.
 This is why this add-on delegates SDR access to pbkhrv/rtl_433, which handles
 kernel driver detachment correctly within its privileged container.
+
 
 ## Hardware
 
