@@ -21,6 +21,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 import schedule
 import time
+from datetime import datetime, timedelta
 import threading
 
 from rtl_reader   import read_sensors, reset_position, trim_json_file
@@ -67,11 +68,40 @@ log = logging.getLogger(__name__)
 battery_alerted: set = set()
 
 
+# Alerte si aucune donnée depuis N minutes
+STALE_THRESHOLD_MIN = 30
+_last_data_time = datetime.now()
+_stale_alerted   = False
+
+def check_data_freshness(ha) -> None:
+    """Notify if no sensor data has been received for a while."""
+    global _stale_alerted
+    elapsed = datetime.now() - _last_data_time
+
+    if elapsed > timedelta(minutes=STALE_THRESHOLD_MIN):
+        if not _stale_alerted:
+            ha.send_persistent_notification(
+                "RTL-433: No sensor data",
+                f"No 433 MHz data received for {int(elapsed.total_seconds() / 60)} "
+                f"minutes. Check the rtl_433 add-on and the SDR dongle."
+            )
+            ha.send_mobile_notification(
+                "RTL-433: No sensor data",
+                f"No 433 MHz data for {int(elapsed.total_seconds() / 60)} minutes."
+            )
+            _stale_alerted = True
+            log.warning(f"Stale data alert sent — {elapsed} without readings.")
+    elif _stale_alerted:
+        _stale_alerted = False
+        log.info("Data flow recovered.")
+
 def scan_and_push() -> None:
     """
     Core task: read new data from the rtl_433 JSON file, register
     all detected devices, push followed temperature sensors to HA.
     """
+    global _last_data_time
+    
     log.info("=" * 60)
     log.info("Scan cycle starting...")
 
@@ -84,7 +114,10 @@ def scan_and_push() -> None:
 
     if not devices:
         log.debug("No new sensor data in this scan cycle.")
+        check_data_freshness(ha)
         return
+
+    _last_data_time = datetime.now()
 
     for sensor_id, data in devices.items():
         # Always register/update the sensor in YAML regardless of type
