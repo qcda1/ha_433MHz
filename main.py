@@ -65,7 +65,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-log.info("RTL-433 Sensor Bridge starting...")
+log.warning("RTL-433 Sensor Bridge starting...")
 
 # Sensors that already triggered a low-battery alert, cleared on recovery
 battery_alerted: set = set()
