@@ -3,30 +3,29 @@ main.py
 RTL-433 Sensor Bridge — Main entry point.
 
 Reads sensor data from the JSON file produced by the pbkhrv/rtl_433
-Home Assistant add-on, registers all detected devices in a YAML config
-file, and pushes followed temperature sensors to Home Assistant via
-the REST API.
+Home Assistant add-on, registers all detected devices in a YAML registry,
+and pushes followed temperature sensors to Home Assistant via the REST API.
 
 A Bottle web panel (port 8099) allows naming sensors and toggling
 which ones are followed in Home Assistant.
 
 Architecture:
-    pbkhrv/rtl_433 add-on → /config/rtl_433_output.json
+    pbkhrv/rtl_433 add-on → /config/rtl_433/rtl_433_output.json
         → this app → HA REST API
 """
 
 import json
 import os
 import logging
-from logging.handlers import RotatingFileHandler
 import schedule
 import time
-from datetime import datetime, timedelta
 import threading
+from datetime import datetime, timedelta
+from logging.handlers import RotatingFileHandler
 
 from rtl_reader   import read_sensors, reset_position, trim_json_file
 from ha_api       import HAClient
-from sensor_store import load_config, register_sensor
+from sensor_store import apply_scan_results, get_sensor
 from web_server   import start_web
 
 # ── Read add-on options from HAOS Supervisor ──────────────────────────────────
@@ -37,16 +36,19 @@ if os.path.exists(_options_path):
     with open(_options_path) as _f:
         _options = json.load(_f)
 
-SCAN_INTERVAL = int(_options.get("scan_interval", 300))
+SCAN_INTERVAL = int(_options.get("scan_interval", 60))
 LOG_LEVEL_STR = _options.get("log_level", "INFO").upper()
 HA_URL        = _options.get("ha_url",   "http://homeassistant:8123")
 HA_TOKEN      = _options.get("ha_token", "")
 CONFIG_FILE   = "/config/rtl_433/rtl433_sensors.yaml"
 LOG_FILE      = "/config/rtl_433/rtl433_bridge.log"
 
-# Conversion string → niveau logging
 LOG_LEVEL = getattr(logging, LOG_LEVEL_STR, logging.INFO)
-# ── Logging ───────────────────────────────────────────────────────────────────
+
+# Alert when no sensor data has arrived for this long
+STALE_THRESHOLD_MIN = 30
+
+# ── Logging (rotating: 1 MB x 4 files max) ────────────────────────────────────
 logging.basicConfig(
     level=LOG_LEVEL,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -56,60 +58,58 @@ logging.basicConfig(
             LOG_FILE,
             maxBytes=1 * 1024 * 1024,
             backupCount=3,
-            encoding="utf-8"
+            encoding="utf-8",
         ),
         logging.StreamHandler(),
     ],
 )
 log = logging.getLogger(__name__)
 
-# Track sensors that already triggered a low-battery alert
-# Reset when battery recovers to avoid repeated notifications.
+# Sensors that already triggered a low-battery alert, cleared on recovery
 battery_alerted: set = set()
 
-
-# Alerte si aucune donnée depuis N minutes
-STALE_THRESHOLD_MIN = 30
+# Data-flow watchdog state
 _last_data_time = datetime.now()
-_stale_alerted   = False
+_stale_alerted  = False
 
-def check_data_freshness(ha) -> None:
-    """Notify if no sensor data has been received for a while."""
+
+def check_data_freshness(ha: HAClient) -> None:
+    """Notify once if no sensor data has been received for a while."""
     global _stale_alerted
+
     elapsed = datetime.now() - _last_data_time
+    minutes = int(elapsed.total_seconds() / 60)
 
     if elapsed > timedelta(minutes=STALE_THRESHOLD_MIN):
         if not _stale_alerted:
-            ha.send_persistent_notification(
-                "RTL-433: No sensor data",
-                f"No 433 MHz data received for {int(elapsed.total_seconds() / 60)} "
-                f"minutes. Check the rtl_433 add-on and the SDR dongle."
-            )
-            ha.send_mobile_notification(
-                "RTL-433: No sensor data",
-                f"No 433 MHz data for {int(elapsed.total_seconds() / 60)} minutes."
-            )
+            title = "RTL-433: no sensor data"
+            msg   = (f"No 433 MHz data received for {minutes} minutes. "
+                     f"Check the rtl_433 add-on and the SDR dongle.")
+            ha.send_persistent_notification(title, msg)
+            ha.send_mobile_notification(title, msg)
             _stale_alerted = True
-            log.warning(f"Stale data alert sent — {elapsed} without readings.")
+            log.warning(f"Stale data alert sent — {minutes} min without readings.")
     elif _stale_alerted:
         _stale_alerted = False
         log.info("Data flow recovered.")
 
+
 def scan_and_push() -> None:
     """
-    Core task: read new data from the rtl_433 JSON file, register
-    all detected devices, push followed temperature sensors to HA.
+    One cycle: read new data from the rtl_433 JSON file, merge the whole
+    batch into the registry in a single atomic write, then push followed
+    temperature sensors to Home Assistant.
     """
     global _last_data_time
-    
+
     log.info("=" * 60)
     log.info("Scan cycle starting...")
 
-    # Trim JSON file if too large
+    ha = HAClient(HA_URL, HA_TOKEN)
+
+    # Keep the rtl_433 output file from growing without bound
     trim_json_file(max_size_mb=10)
-    
-    config  = load_config(CONFIG_FILE)
-    ha      = HAClient(HA_URL, HA_TOKEN)
+
     devices = read_sensors()
 
     if not devices:
@@ -118,10 +118,16 @@ def scan_and_push() -> None:
         return
 
     _last_data_time = datetime.now()
+    check_data_freshness(ha)          # clears a pending stale alert
+
+    # Single read-merge-write for the whole batch, under the store lock.
+    # Returns the merged registry, so name/follow come from what is
+    # actually on disk right now — including any web UI toggle made
+    # while this cycle was running.
+    config = apply_scan_results(devices, CONFIG_FILE)
 
     for sensor_id, data in devices.items():
-        # Always register/update the sensor in YAML regardless of type
-        sensor_cfg  = register_sensor(config, data, CONFIG_FILE)
+        sensor_cfg = get_sensor(config, sensor_id)
 
         temperature = data.get("temperature_C")
         humidity    = data.get("humidity")
@@ -135,7 +141,6 @@ def scan_and_push() -> None:
             log.debug(f"Ignored: {name} (ID={sensor_id})")
             continue
 
-        # Followed sensor must have a temperature reading
         if temperature is None:
             log.warning(
                 f"Sensor '{name}' (ID={sensor_id}) is marked follow=true "
@@ -146,7 +151,7 @@ def scan_and_push() -> None:
         ha.push_sensor(sensor_id, name, temperature,
                        humidity, battery, model, channel)
 
-        # Low battery — notify once until battery recovers
+        # Low battery — notify once until the battery recovers
         if battery == 0 and sensor_id not in battery_alerted:
             ha.notify_low_battery(sensor_id, name)
             battery_alerted.add(sensor_id)
@@ -160,7 +165,7 @@ def scan_and_push() -> None:
 def run_scheduler() -> None:
     """Run scan_and_push on a fixed interval."""
     log.info(f"Scheduler started — scan every {SCAN_INTERVAL}s.")
-    scan_and_push()                                      # Run immediately
+    scan_and_push()
     schedule.every(SCAN_INTERVAL).seconds.do(scan_and_push)
     while True:
         schedule.run_pending()
@@ -170,19 +175,19 @@ def run_scheduler() -> None:
 if __name__ == "__main__":
     log.info("RTL-433 Sensor Bridge starting...")
     log.info(f"Scan interval : {SCAN_INTERVAL}s")
+    log.info(f"Log level     : {LOG_LEVEL_STR}")
     log.info(f"HA URL        : {HA_URL}")
     log.info(f"Config file   : {CONFIG_FILE}")
 
-    # Skip historical data — only process new readings from now on
+    # Skip historical data — only process readings from now on
     reset_position()
 
     # Web configuration panel in a background thread
     web_thread = threading.Thread(
         target=start_web,
         args=(CONFIG_FILE,),
-        daemon=True
+        daemon=True,
     )
     web_thread.start()
 
-    # Scheduler in main thread
     run_scheduler()
